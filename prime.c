@@ -6,8 +6,61 @@
 #include "sys/wait.h"
 
 #define END_OF_DATA -1
+#define READ_END 0
+#define WRITE_END 1
 #define MAX_INTEGERS 1000000
 #define MAX_CHILDREN 50
+
+struct Node {
+  int data;
+  struct Node *next;
+};
+
+struct Queue {
+  struct Node *head, *tail;
+};
+
+struct Queue* createQueue() {
+  struct Queue* temp = (struct Queue*) malloc(sizeof(struct Queue));
+  temp->head = NULL;
+  temp->tail = NULL;
+  return temp;
+}
+
+void enqueue(struct Queue* queue, int data) {
+  struct Node* node = (struct Node*) malloc(sizeof(struct Node));
+  node->data = data;
+  node->next = NULL;
+
+  if (queue->tail == NULL) {
+    queue->head = node;
+    queue->tail = node;
+  }
+  else {
+    queue->tail->next = node;
+    queue->tail = node;
+  }
+}
+
+struct Node* dequeue(struct Queue* queue) {
+  if (queue->head == NULL) {
+    return NULL;
+  }
+  else {
+    struct Node* node = queue->head;
+    queue->head = queue->head->next;
+
+    if (queue->head == NULL) {
+      queue->tail = NULL;
+    }
+
+    return node;
+  }
+}
+
+int isEmpty(struct Queue* queue) {
+  return queue->head == NULL;
+}
 
 int main(int argc, char **argv) {
 
@@ -32,7 +85,14 @@ int main(int argc, char **argv) {
   }
 
   pid_t childProcesses[numOfChildren];
-  //pid_t printerProcess;
+
+  int childrenFDs[numOfChildren + 1][2];
+  for (int i = 0; i < numOfChildren + 1; i++) {
+    if (pipe(childrenFDs[i]) == -1){
+      printf("Pipe opening failed.\n");
+      exit(1);
+    }
+  }
 
   for (int i = 0; i < numOfChildren; i++) {
     childProcesses[i] = fork();
@@ -40,10 +100,26 @@ int main(int argc, char **argv) {
       fprintf(stderr, "Fork failed");
       exit(-1);
     }
-    else if (childProcesses[i] == 0) { // Children runs here
+    else if (childProcesses[i] == 0) { // Child process
       printf("I am a child process %d\n", childProcesses[i]);
+
+      char buf[4];
+      if (read(childrenFDs[i][READ_END], buf, 4) == -1) {
+        printf("Error while reading");
+        exit(1);
+      }
+      printf("%s\n", buf);
+
+      if (write(childrenFDs[i+1][WRITE_END], "hi1", 4) != 4) {
+        printf("Error while writing");
+      }
     }
-    else { // Parent runs here
+    else { // Parent process
+
+      if (write(childrenFDs[0][WRITE_END], "hi0", 4) != 4) {
+        printf("Error while writing");
+      }
+
       wait(NULL);
       printf("Children complete, pid: %d\n", childProcesses[i]);
       exit(0);
