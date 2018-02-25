@@ -11,6 +11,10 @@
 #define MAX_INTEGERS 1000000
 #define MAX_CHILDREN 50
 
+/*************************
+***QUEUE IMPLEMENTATION***
+*************************/
+
 struct Node {
   int data;
   struct Node *next;
@@ -62,7 +66,13 @@ int isEmpty(struct Queue* queue) {
   return queue->head == NULL;
 }
 
+/*************************
+*****PRIME CALCULATOR*****
+*************************/
+
 int main(int argc, char **argv) {
+
+  struct Queue *mainQueue = createQueue();
 
   int numOfIntegers = atoi(argv[1]);
   int numOfChildren = atoi(argv[2]);
@@ -84,6 +94,11 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
+  for (int i = 2; i <= numOfIntegers; i++) {
+    enqueue(mainQueue, i);
+  }
+  enqueue(mainQueue, -1);
+
   pid_t childProcesses[numOfChildren];
 
   int childrenFDs[numOfChildren + 1][2];
@@ -103,20 +118,20 @@ int main(int argc, char **argv) {
     else if (childProcesses[i] == 0) { // Child process
       printf("I am a child process %d\n", childProcesses[i]);
 
-      char buf[4];
-      if (read(childrenFDs[i][READ_END], buf, 4) == -1) {
+      char buffer[20];
+      if (read(childrenFDs[i][READ_END], buffer, 20) == -1) {
         printf("Error while reading");
         exit(1);
       }
-      printf("%s\n", buf);
+      printf("%s\n", buffer);
 
       if (write(childrenFDs[i+1][WRITE_END], "hi1", 4) != 4) {
         printf("Error while writing");
       }
     }
     else { // Parent process
-
-      if (write(childrenFDs[0][WRITE_END], "hi0", 4) != 4) {
+      int numberToSent = (dequeue(mainQueue))->data;
+      if (write(childrenFDs[0][WRITE_END], &numberToSent, sizeof(numberToSent)) != sizeof(numberToSent)) {
         printf("Error while writing");
       }
 
