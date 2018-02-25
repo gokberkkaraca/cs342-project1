@@ -118,12 +118,12 @@ int main(int argc, char **argv) {
     else if (childProcesses[i] == 0) { // Child process
       printf("I am a child process %d\n", childProcesses[i]);
 
-      char buffer[20];
-      if (read(childrenFDs[i][READ_END], buffer, 20) == -1) {
+      int numberToRead;
+      if (read(childrenFDs[i][READ_END], &numberToRead, 20) == -1) {
         printf("Error while reading");
         exit(1);
       }
-      printf("%s\n", buffer);
+      printf("%d\n", numberToRead);
 
       if (write(childrenFDs[i+1][WRITE_END], "hi1", 4) != 4) {
         printf("Error while writing");
