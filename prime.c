@@ -47,9 +47,9 @@ void enqueue(struct Queue* queue, int data) {
   }
 }
 
-struct Node* dequeue(struct Queue* queue) {
+int dequeue(struct Queue* queue) {
   if (queue->head == NULL) {
-    return NULL;
+    return -1;
   }
   else {
     struct Node* node = queue->head;
@@ -58,8 +58,9 @@ struct Node* dequeue(struct Queue* queue) {
     if (queue->head == NULL) {
       queue->tail = NULL;
     }
-
-    return node;
+    int data = node->data;
+    free(node);
+    return data;
   }
 }
 
@@ -90,7 +91,7 @@ void checkArguments(int argc, int numOfIntegers, int numOfChildren) {
 
 int main(int argc, char **argv) {
 
-  struct Queue *mainQueue = createQueue();
+  struct Queue* mainQueue = createQueue();
 
   int numOfIntegers = atoi(argv[1]);
   int numOfChildren = atoi(argv[2]);
@@ -104,49 +105,70 @@ int main(int argc, char **argv) {
   // Check if the arguments are correct
   checkArguments(argc, numOfIntegers, numOfChildren);
 
-  // Enqueue integers
-  for (int i = 2; i <= numOfIntegers; i++) {
-    enqueue(mainQueue, i);
-  }
-  enqueue(mainQueue, END_OF_DATA);
-
-  // Create pipes
+  // Create pipes for children
   for (int i = 0; i < numOfChildren + 1; i++) {
     if (pipe(childrenFDs[i]) == -1) {
-      printf("Pipe opening failed.\n");
+      fprintf(stderr, "Pipe opening failed.\n");
       exit(1);
     }
   }
 
+  // Create pipe for printer
   if (pipe(printerPipe) == -1) {
-    printf("Pipe opening failed.\n");
+    fprintf(stderr, "Pipe opening failed.\n");
     exit(1);
   }
 
+  // Make the pipe between last child and main process non-blocking
   fcntl(childrenFDs[numOfChildren][READ_END], F_SETFL,O_NONBLOCK);
 
-  // Create forks
-  for (int i = 0; i < numOfChildren + 1; i++) {
+  // Insert all numbers to main QUEUE
+  for (int i = 2; i <= numOfChildren; i++) {
+    enqueue(mainQueue, i);
+  }
+  enqueue(mainQueue, -1);
+
+  int i;
+  for (i = 0; i < numOfChildren + 1; i++) {
     childProcesses[i] = fork();
     if (childProcesses[i] < 0) {
       fprintf(stderr, "Fork failed\n");
-      exit(-1);
+      exit(1);
     }
-    else if (childProcesses[i] == 0) { // Child process
+    else if (getpid() != mainPid) {
       int numberToRead;
+      int numberToWrite;
+      int primeNumber = END_OF_DATA;
 
-      while (1) {
-        // Check if it is printer
-        if (i == numOfChildren) {
+      // Printer process
+      if (i == numOfChildren) {
+        while(1) {
           if (read(printerPipe[READ_END], &numberToRead, 1) > 0) {
-            printf("Prime number: %d\n", numberToRead);
+            printf("Prime: %d\n", numberToRead);
           }
         }
-        // Child process
-        else {
-          if (read(childrenFDs[0][READ_END], &numberToRead, sizeof(numberToRead)) > 0) {
-            printf("Number is read: %d\n", numberToRead);
+      }
+      // Child process
+      else {
+        while(1) {
+
+          // Read the number from pipe
+          if (read(childrenFDs[i][READ_END], &numberToRead, sizeof(numberToRead)) > 0) {
+            printf("Read: %d\n", numberToRead);
           }
+
+          // First number of the series is read, it is the prime number
+          if (primeNumber == END_OF_DATA) {
+            primeNumber = numberToRead;
+
+            // Send prime number to printerPipe
+            printf("Sending prime: %d\n", primeNumber);
+            write(printerPipe[WRITE_END], &primeNumber, sizeof(primeNumber));
+          }
+          else {
+            
+          }
+
         }
       }
     }
@@ -155,10 +177,15 @@ int main(int argc, char **argv) {
   // Parent process
   if (getpid() == mainPid) {
     printf("Inside main\n");
-    while(!isEmpty(mainQueue)) {
-      int numberToSend = dequeue(mainQueue)->data;
-      printf("Sending number: %d\n", numberToSend);
-      write(childrenFDs[0][WRITE_END], &numberToSend, sizeof(numberToSend));
+    //int numberToRead;
+    int numberToWrite = 2;
+
+    while (1) {
+      if (!isEmpty(mainQueue)) {
+        numberToWrite = dequeue(mainQueue);
+        printf("Sending number: %d\n", numberToWrite);
+        write(childrenFDs[0][WRITE_END], &numberToWrite, sizeof(numberToWrite));
+      }
     }
   }
 
