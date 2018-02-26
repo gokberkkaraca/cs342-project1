@@ -136,14 +136,14 @@ int main(int argc, char **argv) {
       fprintf(stderr, "Fork failed\n");
       exit(1);
     }
-    else if (getpid() != mainPid) {
+    else if (childProcesses[i] == 0) {
       int numberToRead;
       int primeNumber = END_OF_DATA;
 
       // Printer process
       if (i == numOfChildren) {
         while(1) {
-          if (read(printerPipe[READ_END], &numberToRead, 1) > 0) {
+          if (read(printerPipe[READ_END], &numberToRead, 1) > 0 && numberToRead) {
             printf("Prime: %d\n", numberToRead);
           }
         }
@@ -154,20 +154,18 @@ int main(int argc, char **argv) {
 
           // Read the number from pipe
           if (read(childrenFDs[i][READ_END], &numberToRead, sizeof(numberToRead)) > 0) {
-            printf("Read: %d\n", numberToRead);
-
             // First number of the series is read, it is the prime number
-            if (primeNumber == END_OF_DATA) {
+            if (numberToRead == END_OF_DATA) {
+              primeNumber = END_OF_DATA;
+            }
+            else if (primeNumber == END_OF_DATA && numberToRead != END_OF_DATA){
               primeNumber = numberToRead;
-
               // Send prime number to printerPipe
-              printf("Sending prime: %d\n", primeNumber);
               write(printerPipe[WRITE_END], &primeNumber, sizeof(primeNumber));
             }
             // A number from the middle of series is read, send it to next child
             // If it is not a multiple of last prime number
             else if (numberToRead % primeNumber != 0){
-              printf("Sending number to next child\n");
               write(childrenFDs[i+1][WRITE_END], &numberToRead, sizeof(numberToRead));
             }
           }
@@ -178,29 +176,21 @@ int main(int argc, char **argv) {
 
   // Parent process
   if (getpid() == mainPid) {
-    printf("Inside main\n");
     int numberToRead;
     int numberToWrite;
 
     while (1) {
       if (!isEmpty(mainQueue)) {
         numberToWrite = dequeue(mainQueue);
-        printf("Sending number: %d\n", numberToWrite);
         write(childrenFDs[0][WRITE_END], &numberToWrite, sizeof(numberToWrite));
       }
 
       if (read(childrenFDs[numOfChildren][READ_END], &numberToRead, sizeof(numberToRead)) > 0){
         enqueue(bufferQueue, numberToRead);
         if (numberToRead == END_OF_DATA) {
-          // All the numbers are printed
-          if (bufferQueue->head->data == END_OF_DATA) {
-            break;
-          }
-          // There are still some numbers to print
-          else {
-            mainQueue = bufferQueue;
-            bufferQueue = createQueue();
-          }
+          mainQueue = bufferQueue;
+          bufferQueue = createQueue();
+          break;
         }
       }
     }
