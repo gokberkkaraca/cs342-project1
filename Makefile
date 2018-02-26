@@ -1,3 +1,5 @@
-all: prime
+all: prime mqprime
 prime: prime.c
-	cc -Wall -g -o prime prime.c
+	gcc -Wall -g -o prime prime.c
+mqprime: mqprime.c
+	gcc -Wall -g -o mqprime -lrt mqprime.c
