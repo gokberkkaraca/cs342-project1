@@ -157,13 +157,14 @@ int main(int argc, char **argv) {
             // First number of the series is read, it is the prime number
             if (numberToRead == END_OF_DATA) {
               primeNumber = END_OF_DATA;
+              write(childrenFDs[i+1][WRITE_END], &numberToRead, sizeof(numberToRead));
             }
             else if (primeNumber == END_OF_DATA && numberToRead != END_OF_DATA){
               primeNumber = numberToRead;
               // Send prime number to printerPipe
               write(printerPipe[WRITE_END], &primeNumber, sizeof(primeNumber));
             }
-            // A number from the middle of series is read, send it to next child
+            // A number from the middle is read, send it to next child
             // If it is not a multiple of last prime number
             else if (numberToRead % primeNumber != 0){
               write(childrenFDs[i+1][WRITE_END], &numberToRead, sizeof(numberToRead));
@@ -188,9 +189,13 @@ int main(int argc, char **argv) {
       if (read(childrenFDs[numOfChildren][READ_END], &numberToRead, sizeof(numberToRead)) > 0){
         enqueue(bufferQueue, numberToRead);
         if (numberToRead == END_OF_DATA) {
+
+          if (bufferQueue->head->data == END_OF_DATA) {
+            break;
+          }
+
           mainQueue = bufferQueue;
           bufferQueue = createQueue();
-          break;
         }
       }
     }
