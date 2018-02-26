@@ -205,12 +205,22 @@ int main(int argc, char **argv) {
           if (bufferQueue->head->data == END_OF_DATA) {
             break;
           }
-
+          struct Queue *temp = mainQueue;
           mainQueue = bufferQueue;
-          bufferQueue = createQueue();
+          if(isEmpty(temp)){
+            bufferQueue = temp;
+          }
+          else {
+            bufferQueue = createQueue();
+          }
         }
       }
     }
+    free(mainQueue);
+    while(!isEmpty(bufferQueue)){
+      dequeue(bufferQueue);
+    }
+    free(bufferQueue);
     exit(0);
   }
 
