@@ -4,6 +4,7 @@
 #include "string.h"
 #include "sys/types.h"
 #include "sys/wait.h"
+#include "fcntl.h"
 
 #define END_OF_DATA -1
 #define READ_END 0
@@ -69,15 +70,7 @@ int isEmpty(struct Queue* queue) {
 /*************************
 *****PRIME CALCULATOR*****
 *************************/
-
-int main(int argc, char **argv) {
-
-  struct Queue *mainQueue = createQueue();
-
-  int numOfIntegers = atoi(argv[1]);
-  int numOfChildren = atoi(argv[2]);
-
-  // Check if the arguments are correct
+void checkArguments(int argc, int numOfIntegers, int numOfChildren) {
   if (argc != 3) {
     printf("Wrong number of arguments\n");
     printf("Usage: prime <numberofintegers> <numberofchildren>");
@@ -93,51 +86,79 @@ int main(int argc, char **argv) {
     printf("Maximum 50 children are allowed");
     exit(1);
   }
+}
 
+int main(int argc, char **argv) {
+
+  struct Queue *mainQueue = createQueue();
+
+  int numOfIntegers = atoi(argv[1]);
+  int numOfChildren = atoi(argv[2]);
+
+  pid_t childProcesses[numOfChildren];
+  pid_t mainPid = getpid();
+
+  int childrenFDs[numOfChildren + 1][2];
+  int printerPipe[2];
+
+  // Check if the arguments are correct
+  checkArguments(argc, numOfIntegers, numOfChildren);
+
+  // Enqueue integers
   for (int i = 2; i <= numOfIntegers; i++) {
     enqueue(mainQueue, i);
   }
-  enqueue(mainQueue, -1);
+  enqueue(mainQueue, END_OF_DATA);
 
-  pid_t childProcesses[numOfChildren];
-
-  int childrenFDs[numOfChildren + 1][2];
+  // Create pipes
   for (int i = 0; i < numOfChildren + 1; i++) {
-    if (pipe(childrenFDs[i]) == -1){
+    if (pipe(childrenFDs[i]) == -1) {
       printf("Pipe opening failed.\n");
       exit(1);
     }
   }
 
-  for (int i = 0; i < numOfChildren; i++) {
+  if (pipe(printerPipe) == -1) {
+    printf("Pipe opening failed.\n");
+    exit(1);
+  }
+
+  fcntl(childrenFDs[numOfChildren][READ_END], F_SETFL,O_NONBLOCK);
+
+  // Create forks
+  for (int i = 0; i < numOfChildren + 1; i++) {
     childProcesses[i] = fork();
     if (childProcesses[i] < 0) {
-      fprintf(stderr, "Fork failed");
+      fprintf(stderr, "Fork failed\n");
       exit(-1);
     }
     else if (childProcesses[i] == 0) { // Child process
-      printf("I am a child process %d\n", childProcesses[i]);
-
       int numberToRead;
-      if (read(childrenFDs[i][READ_END], &numberToRead, 20) == -1) {
-        printf("Error while reading");
-        exit(1);
-      }
-      printf("%d\n", numberToRead);
 
-      if (write(childrenFDs[i+1][WRITE_END], "hi1", 4) != 4) {
-        printf("Error while writing");
+      while (1) {
+        // Check if it is printer
+        if (i == numOfChildren) {
+          if (read(printerPipe[READ_END], &numberToRead, 1) > 0) {
+            printf("Prime number: %d\n", numberToRead);
+          }
+        }
+        // Child process
+        else {
+          if (read(childrenFDs[0][READ_END], &numberToRead, sizeof(numberToRead)) > 0) {
+            printf("Number is read: %d\n", numberToRead);
+          }
+        }
       }
     }
-    else { // Parent process
-      int numberToSent = (dequeue(mainQueue))->data;
-      if (write(childrenFDs[0][WRITE_END], &numberToSent, sizeof(numberToSent)) != sizeof(numberToSent)) {
-        printf("Error while writing");
-      }
+  }
 
-      wait(NULL);
-      printf("Children complete, pid: %d\n", childProcesses[i]);
-      exit(0);
+  // Parent process
+  if (getpid() == mainPid) {
+    printf("Inside main\n");
+    while(!isEmpty(mainQueue)) {
+      int numberToSend = dequeue(mainQueue)->data;
+      printf("Sending number: %d\n", numberToSend);
+      write(childrenFDs[0][WRITE_END], &numberToSend, sizeof(numberToSend));
     }
   }
 
