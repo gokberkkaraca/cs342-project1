@@ -10,7 +10,9 @@
 #define READ_END 0
 #define WRITE_END 1
 #define MAX_INTEGERS 1000000
+#define MIN_INTEGERS 1000
 #define MAX_CHILDREN 50
+#define MIN_CHILDREN 1
 
 /*************************
 ***QUEUE IMPLEMENTATION***
@@ -74,17 +76,27 @@ int isEmpty(struct Queue* queue) {
 void checkArguments(int argc, int numOfIntegers, int numOfChildren) {
   if (argc != 3) {
     printf("Wrong number of arguments\n");
-    printf("Usage: prime <numberofintegers> <numberofchildren>");
+    printf("Usage: prime <numberofintegers> <numberofchildren>\n");
     exit(1);
   }
-  else if (numOfIntegers > MAX_INTEGERS) {
+  if (numOfIntegers > MAX_INTEGERS) {
     printf("Invalid number of integers\n");
-    printf("Maximum 1000000 integers are allowed");
+    printf("Maximum 1000000 integers are allowed\n");
     exit(1);
   }
-  else if(numOfChildren > MAX_CHILDREN) {
+  if (numOfIntegers < MIN_INTEGERS) {
+    printf("Invalid number of integers\n");
+    printf("Minimum 1000 integers are allowed\n");
+    exit(1);
+  }
+  if(numOfChildren > MAX_CHILDREN) {
     printf("Invalid number of children\n");
-    printf("Maximum 50 children are allowed");
+    printf("Maximum 50 children are allowed\n");
+    exit(1);
+  }
+  if(numOfChildren < MIN_CHILDREN) {
+    printf("Invalid number of children\n");
+    printf("Minimum 1 children are allowed\n");
     exit(1);
   }
 }
@@ -143,8 +155,8 @@ int main(int argc, char **argv) {
       // Printer process
       if (i == numOfChildren) {
         while(1) {
-          if (read(printerPipe[READ_END], &numberToRead, 1) > 0 && numberToRead) {
-            printf("Prime: %d\n", numberToRead);
+          if (read(printerPipe[READ_END], &numberToRead, sizeof(numberToRead)) > 0 && numberToRead) {
+            printf("%d\n", numberToRead);
           }
         }
       }
