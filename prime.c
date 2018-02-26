@@ -92,6 +92,7 @@ void checkArguments(int argc, int numOfIntegers, int numOfChildren) {
 int main(int argc, char **argv) {
 
   struct Queue* mainQueue = createQueue();
+  struct Queue* bufferQueue = createQueue();
 
   int numOfIntegers = atoi(argv[1]);
   int numOfChildren = atoi(argv[2]);
@@ -123,13 +124,13 @@ int main(int argc, char **argv) {
   fcntl(childrenFDs[numOfChildren][READ_END], F_SETFL,O_NONBLOCK);
 
   // Insert all numbers to main QUEUE
-  for (int i = 2; i <= numOfChildren; i++) {
+  for (int i = 2; i <= numOfIntegers; i++) {
     enqueue(mainQueue, i);
   }
   enqueue(mainQueue, -1);
 
   int i;
-  for (i = 0; i < numOfChildren + 1; i++) {
+  for (i = 0; i <= numOfChildren; i++) {
     childProcesses[i] = fork();
     if (childProcesses[i] < 0) {
       fprintf(stderr, "Fork failed\n");
@@ -137,7 +138,6 @@ int main(int argc, char **argv) {
     }
     else if (getpid() != mainPid) {
       int numberToRead;
-      int numberToWrite;
       int primeNumber = END_OF_DATA;
 
       // Printer process
@@ -155,20 +155,22 @@ int main(int argc, char **argv) {
           // Read the number from pipe
           if (read(childrenFDs[i][READ_END], &numberToRead, sizeof(numberToRead)) > 0) {
             printf("Read: %d\n", numberToRead);
-          }
 
-          // First number of the series is read, it is the prime number
-          if (primeNumber == END_OF_DATA) {
-            primeNumber = numberToRead;
+            // First number of the series is read, it is the prime number
+            if (primeNumber == END_OF_DATA) {
+              primeNumber = numberToRead;
 
-            // Send prime number to printerPipe
-            printf("Sending prime: %d\n", primeNumber);
-            write(printerPipe[WRITE_END], &primeNumber, sizeof(primeNumber));
+              // Send prime number to printerPipe
+              printf("Sending prime: %d\n", primeNumber);
+              write(printerPipe[WRITE_END], &primeNumber, sizeof(primeNumber));
+            }
+            // A number from the middle of series is read, send it to next child
+            // If it is not a multiple of last prime number
+            else if (numberToRead % primeNumber != 0){
+              printf("Sending number to next child\n");
+              write(childrenFDs[i+1][WRITE_END], &numberToRead, sizeof(numberToRead));
+            }
           }
-          else {
-            
-          }
-
         }
       }
     }
@@ -177,8 +179,8 @@ int main(int argc, char **argv) {
   // Parent process
   if (getpid() == mainPid) {
     printf("Inside main\n");
-    //int numberToRead;
-    int numberToWrite = 2;
+    int numberToRead;
+    int numberToWrite;
 
     while (1) {
       if (!isEmpty(mainQueue)) {
@@ -186,7 +188,23 @@ int main(int argc, char **argv) {
         printf("Sending number: %d\n", numberToWrite);
         write(childrenFDs[0][WRITE_END], &numberToWrite, sizeof(numberToWrite));
       }
+
+      if (read(childrenFDs[numOfChildren][READ_END], &numberToRead, sizeof(numberToRead)) > 0){
+        enqueue(bufferQueue, numberToRead);
+        if (numberToRead == END_OF_DATA) {
+          // All the numbers are printed
+          if (bufferQueue->head->data == END_OF_DATA) {
+            break;
+          }
+          // There are still some numbers to print
+          else {
+            mainQueue = bufferQueue;
+            bufferQueue = createQueue();
+          }
+        }
+      }
     }
+    exit(0);
   }
 
   return 0;
