@@ -148,7 +148,7 @@ int main(int argc, char **argv) {
   mqd_t printerQueue;
 
   // Check if the arguments are correct
-  //checkArguments(argc, numOfIntegers, numOfChildren);
+  checkArguments(argc, numOfIntegers, numOfChildren);
 
   // Insert all numbers to main QUEUE
   for (int i = 2; i <= numOfIntegers; i++) {
