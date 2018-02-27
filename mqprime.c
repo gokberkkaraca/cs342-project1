@@ -257,6 +257,7 @@ int main(int argc, char **argv) {
         enqueue(bufferQueue, numberToRead);
         if ( numberToRead == END_OF_DATA) {
            if (bufferQueue->head->data == END_OF_DATA) {
+             free(bufptr);
              break;
            }
           struct Queue *temp = mainQueue;
