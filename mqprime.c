@@ -99,29 +99,27 @@ void checkArguments(int argc, int numOfIntegers, int numOfChildren) {
   }
 }
 
-int receiveNumber(mqd_t queueDescriptor) {
-  mqd_t mq = queueDescriptor;
+int receiveNumber(mqd_t queueDescriptor, int receiver) {
   struct mq_attr mq_attr;
   struct item *itemptr;
   int buflen;
   char *bufptr;
   int n;
 
-  mq_getattr(mq, &mq_attr);
+  mq_getattr(queueDescriptor, &mq_attr);
 
   buflen = mq_attr.mq_msgsize;
   bufptr = (char *) malloc(buflen);
 
-  n = mq_receive(mq, (char *) bufptr, buflen, NULL);
+  n = mq_receive(queueDescriptor, (char *) bufptr, buflen, NULL);
   if (n == -1) {
-    printf("failed to receive");
+    printf("receiver was: %d\n", receiver);
+    perror("mq_receive failed");
     exit(1);
   }
   itemptr = (struct item *) bufptr;
 
   free(bufptr);
-  mq_close(mq);
-
   return itemptr->data;
 }
 
@@ -129,7 +127,7 @@ void sendNumber(mqd_t queueDescriptor, int data) {
   struct item itemToSend;
   itemToSend.data = data;
   if (mq_send(queueDescriptor, (char *) &itemToSend, sizeof(struct item), 0) == -1) {
-    printf("mq_send failed\n");
+    perror("mq_send failed\n");
     exit(1);
   }
 }
@@ -161,14 +159,14 @@ int main(int argc, char **argv) {
   for (int i = 0; i < numOfChildren + 1; i++) {
     char msgQueueName[20];
     sprintf(msgQueueName, "/childQueue%d", i);
-    childQueues[i] = mq_open(msgQueueName, O_RDWR | O_CREAT, 0666, NULL);
+    childQueues[i] = mq_open(msgQueueName, O_RDWR | O_CREAT | O_NONBLOCK, 0666, NULL);
     if (childQueues[i] == -1) {
       perror("Failed to create message queue\n");
       exit(1);
     }
   }
 
-  printerQueue = mq_open("/printerQueue", O_RDWR | O_CREAT, 0666, NULL);
+  printerQueue = mq_open("/printerQueue", O_RDWR | O_CREAT | O_NONBLOCK, 0666, NULL);
   if(printerQueue == -1) {
     perror("Failed to create message queue\n");
     exit(1);
@@ -189,38 +187,30 @@ int main(int argc, char **argv) {
       // Printer process
       if (i == numOfChildren) {
         while(1) {
-          mqd_t queueDescriptor = mq_open("/printerQueue", O_RDWR);
-          if (queueDescriptor == -1) {
-            printf("can not open message queue");
-            exit(1);
-          }
-          numberToRead = receiveNumber(queueDescriptor);
+          numberToRead = receiveNumber(printerQueue, i+1);
           printf("%d\n", numberToRead);
         }
       }
       //Child process
       else {
         while(1) {
-          char msgQueueName[20];
-          sprintf(msgQueueName, "/childQueue%d", i);
-          mqd_t queueDescriptor = mq_open(msgQueueName, O_RDWR);
-          if (queueDescriptor == -1) {
-            printf("can not open message queue");
-            exit(1);
-          }
-          numberToRead = receiveNumber(queueDescriptor);
+          printf("child %d tries to receive\n", i);
+          numberToRead = receiveNumber(childQueues[i], i+1);
           if (numberToRead == END_OF_DATA) {
             primeNumber = END_OF_DATA;
+            printf("child %d tries to send to next child\n", i);
             sendNumber(childQueues[i+1], numberToRead);
           }
           else if (primeNumber == END_OF_DATA && numberToRead != END_OF_DATA){
             primeNumber = numberToRead;
             // Send prime number to printerQueue
+            printf("child %d tries to send to printer\n", i);
             sendNumber(printerQueue, primeNumber);
           }
           // A number from the middle is read, send it to next child
           // If it is not a multiple of last prime number
           else if (numberToRead % primeNumber != 0){
+            printf("child %d tries to send to next child\n", i);
             sendNumber(childQueues[i+1], numberToRead);
           }
         }
@@ -236,18 +226,12 @@ int main(int argc, char **argv) {
     while (1) {
       if (!isEmpty(mainQueue)) {
         numberToWrite = dequeue(mainQueue);
+        printf("main tries to send to next child\n");
         sendNumber(childQueues[0], numberToWrite);
       }
 
-      char msgQueueName[20];
-      sprintf(msgQueueName, "/childQueue%d", numOfChildren);
-      mqd_t queueDescriptor = mq_open(msgQueueName, O_RDWR);
-      if (queueDescriptor == -1) {
-        printf("can not open message queue");
-        exit(1);
-      }
-
-      numberToRead = receiveNumber(queueDescriptor);
+      printf("main tries to receive\n");
+      numberToRead = receiveNumber(childQueues[numOfChildren], 0);
       enqueue(bufferQueue, numberToRead);
       if (numberToRead == END_OF_DATA) {
 
@@ -264,6 +248,10 @@ int main(int argc, char **argv) {
         }
       }
     }
+    for (int i = 0; i <= numOfChildren; i++) {
+      mq_close(childQueues[i]);
+    }
+    mq_close(printerQueue);
     free(mainQueue);
     while(!isEmpty(bufferQueue)){
       dequeue(bufferQueue);
