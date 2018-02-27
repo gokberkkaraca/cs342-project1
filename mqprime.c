@@ -3,11 +3,11 @@
 #include "unistd.h"
 #include "mqueue.h"
 
-#define END_OF_DATA -1
-#define MAX_INTEGERS 1000000
-#define MIN_INTEGERS 1000
-#define MAX_CHILDREN 5
-#define MIN_CHILDREN 1
+#define END_OF_DATA (-1)
+#define MAX_INTEGERS (1000000)
+#define MIN_INTEGERS (1000)
+#define MAX_CHILDREN (5)
+#define MIN_CHILDREN (1)
 
 /*************************
 ***QUEUE IMPLEMENTATION***
@@ -112,24 +112,22 @@ int receiveNumber(mqd_t queueDescriptor, int receiver) {
   bufptr = (char *) malloc(buflen);
 
   n = mq_receive(queueDescriptor, (char *) bufptr, buflen, NULL);
-  if (n == -1) {
-    printf("receiver was: %d\n", receiver);
-    perror("mq_receive failed");
-    exit(1);
-  }
-  itemptr = (struct item *) bufptr;
+  if (n >= 0) {
+    itemptr = (struct item *) bufptr;
 
-  free(bufptr);
-  return itemptr->data;
+    free(bufptr);
+    return itemptr->data;
+  }
+  else {
+    free(bufptr);
+    return -2;
+  }
 }
 
 void sendNumber(mqd_t queueDescriptor, int data) {
   struct item itemToSend;
   itemToSend.data = data;
-  if (mq_send(queueDescriptor, (char *) &itemToSend, sizeof(struct item), 0) == -1) {
-    perror("mq_send failed\n");
-    exit(1);
-  }
+  mq_send(queueDescriptor, (char *) &itemToSend, sizeof(struct item), 0);
 }
 
 int main(int argc, char **argv) {
@@ -159,14 +157,19 @@ int main(int argc, char **argv) {
   for (int i = 0; i < numOfChildren + 1; i++) {
     char msgQueueName[20];
     sprintf(msgQueueName, "/childQueue%d", i);
-    childQueues[i] = mq_open(msgQueueName, O_RDWR | O_CREAT | O_NONBLOCK, 0666, NULL);
+    if (i == 0 || i == numOfChildren) {
+      childQueues[i] = mq_open(msgQueueName, O_RDWR | O_CREAT | O_NONBLOCK, 0666, NULL);
+    }
+    else {
+      childQueues[i] = mq_open(msgQueueName, O_RDWR | O_CREAT, 0666, NULL);
+    }
     if (childQueues[i] == -1) {
       perror("Failed to create message queue\n");
       exit(1);
     }
   }
 
-  printerQueue = mq_open("/printerQueue", O_RDWR | O_CREAT | O_NONBLOCK, 0666, NULL);
+  printerQueue = mq_open("/printerQueue", O_RDWR | O_CREAT, 0666, NULL);
   if(printerQueue == -1) {
     perror("Failed to create message queue\n");
     exit(1);
@@ -188,30 +191,31 @@ int main(int argc, char **argv) {
       if (i == numOfChildren) {
         while(1) {
           numberToRead = receiveNumber(printerQueue, i+1);
-          printf("%d\n", numberToRead);
+          if (numberToRead != -2) {
+            printf("Prime: %d\n", numberToRead);
+          }
         }
       }
       //Child process
       else {
         while(1) {
-          printf("child %d tries to receive\n", i);
           numberToRead = receiveNumber(childQueues[i], i+1);
-          if (numberToRead == END_OF_DATA) {
-            primeNumber = END_OF_DATA;
-            printf("child %d tries to send to next child\n", i);
-            sendNumber(childQueues[i+1], numberToRead);
-          }
-          else if (primeNumber == END_OF_DATA && numberToRead != END_OF_DATA){
-            primeNumber = numberToRead;
-            // Send prime number to printerQueue
-            printf("child %d tries to send to printer\n", i);
-            sendNumber(printerQueue, primeNumber);
-          }
-          // A number from the middle is read, send it to next child
-          // If it is not a multiple of last prime number
-          else if (numberToRead % primeNumber != 0){
-            printf("child %d tries to send to next child\n", i);
-            sendNumber(childQueues[i+1], numberToRead);
+          if (numberToRead != -2) {
+            printf("child %d received: %d\n", i, numberToRead);
+            if (numberToRead == END_OF_DATA) {
+              primeNumber = END_OF_DATA;
+              sendNumber(childQueues[i+1], numberToRead);
+            }
+            else if (primeNumber == END_OF_DATA && numberToRead != END_OF_DATA){
+              primeNumber = numberToRead;
+              // Send prime number to printerQueue
+              sendNumber(printerQueue, primeNumber);
+            }
+            // A number from the middle is read, send it to next child
+            // If it is not a multiple of last prime number
+            else if (numberToRead % primeNumber != 0){
+              sendNumber(childQueues[i+1], numberToRead);
+            }
           }
         }
       }
@@ -226,25 +230,26 @@ int main(int argc, char **argv) {
     while (1) {
       if (!isEmpty(mainQueue)) {
         numberToWrite = dequeue(mainQueue);
-        printf("main tries to send to next child\n");
         sendNumber(childQueues[0], numberToWrite);
       }
 
-      printf("main tries to receive\n");
-      numberToRead = receiveNumber(childQueues[numOfChildren], 0);
-      enqueue(bufferQueue, numberToRead);
-      if (numberToRead == END_OF_DATA) {
-
-        if (bufferQueue->head->data == END_OF_DATA) {
-          break;
-        }
-        struct Queue *temp = mainQueue;
-        mainQueue = bufferQueue;
-        if(isEmpty(temp)){
-          bufferQueue = temp;
-        }
-        else {
-          bufferQueue = createQueue();
+       numberToRead = receiveNumber(childQueues[numOfChildren], 0);
+      if(numberToRead != -2) {
+        enqueue(bufferQueue, numberToRead);
+        printf("main received and buffered: %d\n", numberToRead);
+        if ( numberToRead == END_OF_DATA) {
+           printf("End of series detected\n");
+           if (bufferQueue->head->data == END_OF_DATA) {
+             break;
+           }
+          // struct Queue *temp = mainQueue;
+          // mainQueue = bufferQueue;
+          // if(isEmpty(temp)){
+          //   bufferQueue = temp;
+          // }
+          // else {
+          //   bufferQueue = createQueue();
+          // }
         }
       }
     }
