@@ -205,22 +205,18 @@ int main(int argc, char **argv) {
         while(1) {
           numberToRead = receiveNumber(childQueues[i], i+1);
           if (numberToRead != -2) {
-            printf("child %d has received number: %d\n", i, numberToRead);
             if (numberToRead == END_OF_DATA) {
               primeNumber = END_OF_DATA;
-              printf("1child %d should send %d\n", i, numberToRead);
               sendNumber(childQueues[i+1], numberToRead);
             }
             else if (primeNumber == END_OF_DATA && numberToRead != END_OF_DATA){
               primeNumber = numberToRead;
               // Send prime number to printerQueue
-              printf("2child %d should send %d\n", i, numberToRead);
               sendNumber(printerQueue, primeNumber);
             }
             // A number from the middle is read, send it to next child
             // If it is not a multiple of last prime number
             else if (numberToRead % primeNumber != 0){
-              printf("3child %d should send %d", i, numberToRead);
               sendNumber(childQueues[i+1], numberToRead);
             }
           }
@@ -256,7 +252,6 @@ int main(int argc, char **argv) {
         itemptr = (struct item *) bufptr;
         numberToRead = itemptr->data;
         enqueue(bufferQueue, numberToRead);
-        printf("main received and buffered: %d\n", numberToRead);
         if ( numberToRead == END_OF_DATA) {
            if (bufferQueue->head->data == END_OF_DATA) {
              free(bufptr);
