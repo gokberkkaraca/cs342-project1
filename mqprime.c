@@ -117,8 +117,9 @@ int receiveNumber(mqd_t queueDescriptor, int receiver) {
     if (receiver == 0) {
       printf("main received: %d\n", itemptr->data);
     }
+    int data = itemptr->data;
     free(bufptr);
-    return itemptr->data;
+    return data;
   }
   else {
     free(bufptr);
@@ -267,8 +268,8 @@ int main(int argc, char **argv) {
             bufferQueue = createQueue();
           }
         }
-        free(bufptr);
       }
+      free(bufptr);
     }
     for (int i = 0; i <= numOfChildren; i++) {
       mq_close(childQueues[i]);
