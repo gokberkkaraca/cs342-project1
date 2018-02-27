@@ -157,7 +157,7 @@ int main(int argc, char **argv) {
   for (int i = 0; i < numOfChildren + 1; i++) {
     char msgQueueName[20];
     sprintf(msgQueueName, "/childQueue%d", i);
-    if (i == 0 || i == numOfChildren) {
+    if (i == numOfChildren) {
       childQueues[i] = mq_open(msgQueueName, O_RDWR | O_CREAT | O_NONBLOCK, 0666, NULL);
     }
     else {
@@ -242,14 +242,14 @@ int main(int argc, char **argv) {
            if (bufferQueue->head->data == END_OF_DATA) {
              break;
            }
-          // struct Queue *temp = mainQueue;
-          // mainQueue = bufferQueue;
-          // if(isEmpty(temp)){
-          //   bufferQueue = temp;
-          // }
-          // else {
-          //   bufferQueue = createQueue();
-          // }
+          struct Queue *temp = mainQueue;
+          mainQueue = bufferQueue;
+          if(isEmpty(temp)){
+            bufferQueue = temp;
+          }
+          else {
+            bufferQueue = createQueue();
+          }
         }
       }
     }
