@@ -128,7 +128,6 @@ void sendNumber(mqd_t queueDescriptor, int data) {
   struct item itemToSend;
   itemToSend.data = data;
   if (mq_send(queueDescriptor, (char *) &itemToSend, sizeof(struct item), 0) == -1) {
-    perror("sending -1 failed\n");
     while(mq_send(queueDescriptor, (char *) &itemToSend, sizeof(struct item), 0) == -1) {
     }
   }
