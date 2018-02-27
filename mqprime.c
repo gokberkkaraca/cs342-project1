@@ -194,7 +194,7 @@ int main(int argc, char **argv) {
         while(1) {
           numberToRead = receiveNumber(printerQueue, i+1);
           if (numberToRead != -2) {
-            printf("Prime: %d\n", numberToRead);
+            printf("%d\n", numberToRead);
           }
         }
       }
@@ -208,7 +208,6 @@ int main(int argc, char **argv) {
               primeNumber = END_OF_DATA;
               sendNumber(childQueues[i+1], numberToRead);
               if(i == numOfChildren - 1) {
-                printf("last child sends to main: %d\n", numberToRead);
               }
             }
             else if (primeNumber == END_OF_DATA && numberToRead != END_OF_DATA){
@@ -255,9 +254,7 @@ int main(int argc, char **argv) {
         numberToRead = itemptr->data;
 
         enqueue(bufferQueue, numberToRead);
-        printf("main received and buffered: %d\n", numberToRead);
         if ( numberToRead == END_OF_DATA) {
-           printf("End of series detected\n");
            if (bufferQueue->head->data == END_OF_DATA) {
              break;
            }
