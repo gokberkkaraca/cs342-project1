@@ -114,9 +114,6 @@ int receiveNumber(mqd_t queueDescriptor, int receiver) {
   n = mq_receive(queueDescriptor, (char *) bufptr, buflen, NULL);
   if (n > 0) {
     itemptr = (struct item *) bufptr;
-    if (receiver == 0) {
-      printf("main received: %d\n", itemptr->data);
-    }
     int data = itemptr->data;
     free(bufptr);
     return data;
@@ -130,7 +127,11 @@ int receiveNumber(mqd_t queueDescriptor, int receiver) {
 void sendNumber(mqd_t queueDescriptor, int data) {
   struct item itemToSend;
   itemToSend.data = data;
-  mq_send(queueDescriptor, (char *) &itemToSend, sizeof(struct item), 0);
+  if (mq_send(queueDescriptor, (char *) &itemToSend, sizeof(struct item), 0) == -1) {
+    perror("sending -1 failed\n");
+    while(mq_send(queueDescriptor, (char *) &itemToSend, sizeof(struct item), 0) == -1) {
+    }
+  }
 }
 
 int main(int argc, char **argv) {
@@ -204,21 +205,22 @@ int main(int argc, char **argv) {
         while(1) {
           numberToRead = receiveNumber(childQueues[i], i+1);
           if (numberToRead != -2) {
-            //printf("child %d received: %d\n", i, numberToRead);
+            printf("child %d has received number: %d\n", i, numberToRead);
             if (numberToRead == END_OF_DATA) {
               primeNumber = END_OF_DATA;
+              printf("1child %d should send %d\n", i, numberToRead);
               sendNumber(childQueues[i+1], numberToRead);
-              if(i == numOfChildren - 1) {
-              }
             }
             else if (primeNumber == END_OF_DATA && numberToRead != END_OF_DATA){
               primeNumber = numberToRead;
               // Send prime number to printerQueue
+              printf("2child %d should send %d\n", i, numberToRead);
               sendNumber(printerQueue, primeNumber);
             }
             // A number from the middle is read, send it to next child
             // If it is not a multiple of last prime number
             else if (numberToRead % primeNumber != 0){
+              printf("3child %d should send %d", i, numberToRead);
               sendNumber(childQueues[i+1], numberToRead);
             }
           }
@@ -253,8 +255,8 @@ int main(int argc, char **argv) {
       if (n > 0) {
         itemptr = (struct item *) bufptr;
         numberToRead = itemptr->data;
-
         enqueue(bufferQueue, numberToRead);
+        printf("main received and buffered: %d\n", numberToRead);
         if ( numberToRead == END_OF_DATA) {
            if (bufferQueue->head->data == END_OF_DATA) {
              free(bufptr);
