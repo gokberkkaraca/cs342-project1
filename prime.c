@@ -17,6 +17,9 @@
 ***QUEUE IMPLEMENTATION***
 *************************/
 
+// This queue implementation was inspired from
+// https://www.geeksforgeeks.org/queue-set-2-linked-list-implementation/
+
 struct Node {
   int data;
   struct Node *next;
