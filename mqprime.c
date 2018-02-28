@@ -2,6 +2,8 @@
 #include "stdlib.h"
 #include "unistd.h"
 #include "mqueue.h"
+#include <sys/types.h>
+#include <signal.h>
 
 #define END_OF_DATA (-1)
 #define MAX_INTEGERS (1000000)
@@ -160,6 +162,7 @@ int main(int argc, char **argv) {
   for (int i = 0; i < numOfChildren + 1; i++) {
     char msgQueueName[20];
     sprintf(msgQueueName, "/childQueue%d", i);
+    mq_unlink(msgQueueName);
     if (i == numOfChildren) {
       childQueues[i] = mq_open(msgQueueName, O_RDWR | O_CREAT | O_NONBLOCK, 0666, NULL);
     }
@@ -269,14 +272,22 @@ int main(int argc, char **argv) {
       free(bufptr);
     }
     for (int i = 0; i <= numOfChildren; i++) {
+      char msgQueueName[20];
+      sprintf(msgQueueName, "/childQueue%d", i);
       mq_close(childQueues[i]);
+      mq_unlink(msgQueueName);
     }
     mq_close(printerQueue);
+    mq_unlink("/printerQueue");
     free(mainQueue);
     while(!isEmpty(bufferQueue)){
       dequeue(bufferQueue);
     }
     free(bufferQueue);
+
+    for (i = 0; i <= numOfChildren; i++) {
+      kill(childProcesses[i], SIGTERM);
+    }
     exit(0);
   }
 
