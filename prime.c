@@ -2,6 +2,8 @@
 #include "stdlib.h"
 #include "unistd.h"
 #include "fcntl.h"
+#include <sys/types.h>
+#include <signal.h>
 
 #define END_OF_DATA -1
 #define READ_END 0
@@ -218,6 +220,10 @@ int main(int argc, char **argv) {
       dequeue(bufferQueue);
     }
     free(bufferQueue);
+
+    for (i = 0; i <= numOfChildren; i++) {
+      kill(childProcesses[i], SIGTERM);
+    }
     exit(0);
   }
 
