@@ -3,6 +3,7 @@
 #include "unistd.h"
 #include "fcntl.h"
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <signal.h>
 
 #define END_OF_DATA -1
@@ -12,6 +13,7 @@
 #define MIN_INTEGERS 1000
 #define MAX_CHILDREN 50
 #define MIN_CHILDREN 1
+#define KILL_SIGNAL -3
 
 /*************************
 ***QUEUE IMPLEMENTATION***
@@ -158,6 +160,10 @@ int main(int argc, char **argv) {
       if (i == numOfChildren) {
         while(1) {
           if (read(printerPipe[READ_END], &numberToRead, sizeof(numberToRead)) > 0 && numberToRead) {
+            // Terminate the child if kill signal is received
+            if (numberToRead == KILL_SIGNAL){
+              exit(0);
+            }
             printf("%d\n", numberToRead);
           }
         }
@@ -168,6 +174,11 @@ int main(int argc, char **argv) {
 
           // Read the number from pipe
           if (read(childrenFDs[i][READ_END], &numberToRead, sizeof(numberToRead)) > 0) {
+            if (numberToRead == KILL_SIGNAL){
+              write(childrenFDs[i+1][WRITE_END], &numberToRead, sizeof(numberToRead));
+              exit(0);
+            }
+
             // First number of the series is read, it is the prime number
             if (numberToRead == END_OF_DATA) {
               primeNumber = END_OF_DATA;
@@ -205,6 +216,9 @@ int main(int argc, char **argv) {
         if (numberToRead == END_OF_DATA) {
 
           if (bufferQueue->head->data == END_OF_DATA) {
+            numberToWrite = KILL_SIGNAL;
+            write(childrenFDs[0][WRITE_END], &numberToWrite, sizeof(numberToWrite));
+            write(printerPipe[WRITE_END], &numberToWrite, sizeof(numberToWrite));
             break;
           }
           struct Queue *temp = mainQueue;
@@ -218,15 +232,15 @@ int main(int argc, char **argv) {
         }
       }
     }
+    for (int i = 0; i <= numOfChildren; i++) {
+      wait(NULL);
+    }
+
     free(mainQueue);
     while(!isEmpty(bufferQueue)){
       dequeue(bufferQueue);
     }
     free(bufferQueue);
-
-    for (i = 0; i <= numOfChildren; i++) {
-      kill(childProcesses[i], SIGTERM);
-    }
     exit(0);
   }
 

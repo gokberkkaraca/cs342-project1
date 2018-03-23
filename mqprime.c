@@ -10,6 +10,7 @@
 #define MIN_INTEGERS (1000)
 #define MAX_CHILDREN (5)
 #define MIN_CHILDREN (1)
+#define KILL_SIGNAL (-3)
 
 /*************************
 ***QUEUE IMPLEMENTATION***
@@ -202,6 +203,9 @@ int main(int argc, char **argv) {
         while(1) {
           numberToRead = receiveNumber(printerQueue, i+1);
           if (numberToRead != -2) {
+            if (numberToRead == KILL_SIGNAL) {
+              exit(0);
+            }
             printf("%d\n", numberToRead);
           }
         }
@@ -211,6 +215,11 @@ int main(int argc, char **argv) {
         while(1) {
           numberToRead = receiveNumber(childQueues[i], i+1);
           if (numberToRead != -2) {
+            if(numberToRead == KILL_SIGNAL) {
+              sendNumber(childQueues[i+1], numberToRead);
+              exit(0);
+            }
+
             if (numberToRead == END_OF_DATA) {
               primeNumber = END_OF_DATA;
               sendNumber(childQueues[i+1], numberToRead);
@@ -260,6 +269,9 @@ int main(int argc, char **argv) {
         enqueue(bufferQueue, numberToRead);
         if ( numberToRead == END_OF_DATA) {
            if (bufferQueue->head->data == END_OF_DATA) {
+             numberToWrite = KILL_SIGNAL;
+             sendNumber(childQueues[0], numberToWrite);
+             sendNumber(printerQueue, numberToWrite);
              free(bufptr);
              break;
            }
@@ -288,10 +300,6 @@ int main(int argc, char **argv) {
       dequeue(bufferQueue);
     }
     free(bufferQueue);
-
-    for (i = 0; i <= numOfChildren; i++) {
-      kill(childProcesses[i], SIGTERM);
-    }
     exit(0);
   }
 
