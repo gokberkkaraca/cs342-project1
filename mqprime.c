@@ -3,6 +3,7 @@
 #include "unistd.h"
 #include "mqueue.h"
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <signal.h>
 
 #define END_OF_DATA (-1)
@@ -287,6 +288,11 @@ int main(int argc, char **argv) {
       }
       free(bufptr);
     }
+
+    for (int i = 0; i <= numOfChildren; i++) {
+      wait(NULL);
+    }
+
     for (int i = 0; i <= numOfChildren; i++) {
       char msgQueueName[20];
       sprintf(msgQueueName, "/childQueue%d", i);
